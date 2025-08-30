@@ -1,3 +1,8 @@
+// Hunter Schneider
+// SDEV200
+// Prof. Brian Parrott
+// 8/28/25
+// Checks the validity of a credit card number with Luhn's method
 
 import java.util.Scanner;
 
