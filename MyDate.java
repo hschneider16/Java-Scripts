@@ -68,7 +68,7 @@ public class MyDate {
         GregorianCalendar calendar = new GregorianCalendar();
         calendar.setTimeInMillis(elapsedTime);
         this.year = calendar.get(GregorianCalendar.YEAR);
-        this.month = calendar.get(GregorianCalendar.MONTH);
+        this.month = calendar.get(GregorianCalendar.MONTH); // starts at 0 when there is no 0 month, so adding +1 to fix the date
         this.day = calendar.get(GregorianCalendar.DAY_OF_MONTH);
     }
 
@@ -77,8 +77,8 @@ public class MyDate {
         MyDate date2 = new MyDate(34355555133101L);
 
         // display results
-        System.out.println("Date 1: " + date1.getYear() + "-" + date1.getMonth() + "-" + date1.getDay());
-        System.out.println("Date 2: " + date2.getYear() + "-" + date2.getMonth() + "-" + date2.getDay());
+        System.out.println("Date 1: " + (date1.getMonth() + 1) + "/" + date1.getDay() + "/" + date1.getYear()); // adding 1 to the month because the calendar function starts at 0
+        System.out.println("Date 2: " + (date2.getMonth() + 1) + "/" + date2.getDay() + "/" + date2.getYear());
     }
 
 }
