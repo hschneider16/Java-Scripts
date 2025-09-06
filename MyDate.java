@@ -68,7 +68,7 @@ public class MyDate {
         GregorianCalendar calendar = new GregorianCalendar();
         calendar.setTimeInMillis(elapsedTime);
         this.year = calendar.get(GregorianCalendar.YEAR);
-        this.month = calendar.get(GregorianCalendar.MONTH); // starts at 0 when there is no 0 month, so adding +1 to fix the date
+        this.month = calendar.get(GregorianCalendar.MONTH);
         this.day = calendar.get(GregorianCalendar.DAY_OF_MONTH);
     }
 
