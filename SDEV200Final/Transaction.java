@@ -12,14 +12,17 @@ public class Transaction {
         this.account = account;
     }
 
+    // Function for creating transactions
     public void makeTransaction(double amount, String type) {
         this.amount = amount;
         this.type = type;
         
         // Update account balance
         if (type.equals("deposit")) {
+            // Update with deposited amount
             account.deposit(amount);
         } else if (type.equals("withdraw")) {
+            // Update with withdrawn amount
             account.withdraw(amount);
         }
         
