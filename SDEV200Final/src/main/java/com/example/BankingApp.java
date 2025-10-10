@@ -1,5 +1,12 @@
 package com.example;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Scanner;
+
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -127,14 +134,31 @@ public class BankingApp extends Application {
     Button backToLoginButton = new Button("Back to Login");
 
     createAccountButton.setOnAction(e -> {
-        // Add account creation logic here
-        System.out.println("Created account with the following details:");
-        System.out.println("First Name: " + firstNameField.getText());
-        System.out.println("Last Name: " + lastNameField.getText());
-        System.out.println("Email: " + emailField.getText());
-        System.out.println("Phone Number: " + phoneField.getText());
-        System.out.println("Username: " + newUsernameField.getText());
-        System.out.println("Password: " + newPasswordField.getText());
+        
+        String firstName = firstNameField.getText();
+        String lastName = lastNameField.getText();
+        String email = emailField.getText();
+        String phone = phoneField.getText();
+        String username = newUsernameField.getText();
+        String password = newPasswordField.getText();
+        
+        if (!phone.matches("\\d+")) {
+            // Notify user if number input is incorrect
+            phoneField.clear();
+            phoneField.setText("Invalid phone number");
+            return; // Prevent signing-up with an incorrect phone number
+        }
+
+        try {
+            int nextUserId = getNextUserId(); // Determine next unique userId
+            User newUser = new User(nextUserId, firstName, lastName, username, password, email, Long.parseLong(phone));
+            writeUserData(newUser);
+        } catch (NumberFormatException ex) {
+            System.out.println("Invalid phone number");
+        }
+
+        createAccountButton.setText("Account Created!");
+        createAccountButton.setDisable(true);
     });
 
     backToLoginButton.setOnAction(e -> showLoginScreen());
@@ -163,6 +187,40 @@ public class BankingApp extends Application {
     primaryStage.show();
 }
 
+// function for making user IDs unique
+private int getNextUserId() {
+    int maxId = 0;
+    try (Scanner scanner = new Scanner(new File("src\\main\\data\\users.txt"))) {
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            String[] parts = line.split(",");
+            if (parts.length > 0) {
+                try {
+                    int userId = Integer.parseInt(parts[0]);
+                    maxId = Math.max(maxId, userId);
+                } catch (NumberFormatException e) {
+                    // exception is userID not an integer
+                    System.err.println("Invalid userId format in file: " + parts[0]);
+                }
+            }
+        }
+    } catch (FileNotFoundException e) {
+        return 1;
+    }
+    return maxId + 1;
+}
+
+// function for writing user data to the users.txt file
+private void writeUserData(User user) {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter("src\\main\\data\\users.txt", true))) {
+        writer.write(user.getUserId() + "," + user.getFirstName() + "," + user.getLastName() + "," +
+                user.getUsername() + "," + user.getPassword() + "," + user.getEmail() + "," + user.getPhoneNumber());
+        writer.newLine();
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+}
+
     // MAIN SCREEN
     private void showMainScreen() {
         BorderPane root = new BorderPane();
@@ -183,7 +241,7 @@ public class BankingApp extends Application {
         helloLabel.setTextFill(Color.WHITE);
 
         Button logoutButton = new Button("Log Out");
-        // implement functionality later
+        logoutButton.setOnAction(e -> showLoginScreen());
 
         HBox.setHgrow(bankNameLabel, Priority.ALWAYS);
         bankNameLabel.setMaxWidth(Double.MAX_VALUE);

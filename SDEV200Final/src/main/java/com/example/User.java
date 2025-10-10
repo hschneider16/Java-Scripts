@@ -2,13 +2,17 @@ package com.example;
 
 public class User {
     private int userId;
+    private String firstName;
+    private String lastName;
     private String username;
     private String password;
     private String email;
-    private String phoneNumber;
+    private long phoneNumber;
 
-    public User(int userId, String username, String password, String email, String phoneNumber) {
+    public User(int userId, String firstName, String lastName, String username, String password, String email, long phoneNumber) {
         this.userId = userId;
+        this.firstName = firstName;
+        this.lastName = lastName;
         this.username = username;
         this.password = password;
         this.email = email;
@@ -17,6 +21,14 @@ public class User {
 
     public int getUserId() {
         return userId;
+    }
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
     }
 
     public String getUsername() {
@@ -28,10 +40,10 @@ public class User {
     }
 
     public String getEmail() {
-    return email;
+        return email;
     }
 
-    public String getPhoneNumber() {
+    public long getPhoneNumber() {
         return phoneNumber;
     }
 }
