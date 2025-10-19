@@ -5,13 +5,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -22,7 +26,9 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+
 
 public class BankingApp extends Application {
 
@@ -67,10 +73,24 @@ public class BankingApp extends Application {
         Button loginButton = new Button("Login");
         Button signupButton = new Button("Sign Up");
 
-        loginButton.setOnAction(e -> {
-            // Add login logic here
-            showMainScreen();
-        });
+    loginButton.setOnAction(e -> {
+        String username = usernameField.getText();
+        String password = passwordField.getText();
+
+        User loggedInUser = authenticateUser(username, password);
+
+        if (loggedInUser != null) {
+            // Login successful
+            System.out.println("Login successful for user: " + username);
+            showMainScreen(loggedInUser);
+        } else {
+            // Login failed
+            System.out.println("Login failed for user: " + username);
+            Label errorLabel = new Label("Invalid username or password.");
+            errorLabel.setTextFill(Color.RED);
+            loginForm.add(errorLabel, 0, 3, 2, 1);
+        }
+    });
 
         signupButton.setOnAction(e -> {
             showSignupScreen();
@@ -91,6 +111,36 @@ public class BankingApp extends Application {
         primaryStage.setScene(loginScene);
         primaryStage.show();
     }
+
+private User authenticateUser(String username, String password) {
+    try {
+        Scanner scanner = new Scanner(new File("src\\main\\data\\users.txt"));
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            String[] parts = line.split(",");
+
+            if (parts.length == 7) {
+                int userId = Integer.parseInt(parts[0]);
+                String storedUsername = parts[3];
+                String storedPassword = parts[4];
+
+                if (username.equals(storedUsername) && password.equals(storedPassword)) {
+                    String firstName = parts[1];
+                    String lastName = parts[2];
+                    String email = parts[5];
+                    long phoneNumber = Long.parseLong(parts[6]);
+
+                    return new User(userId, firstName, lastName, storedUsername, storedPassword, email, phoneNumber);
+                }
+            }
+        }
+        scanner.close();
+    } catch (FileNotFoundException e) {
+        System.out.println("Error: users.txt file not found.");
+    }
+
+    return null;
+}
 
     // SIGN UP SCREEN
     private void showSignupScreen() {
@@ -199,7 +249,7 @@ private int getNextUserId() {
                     int userId = Integer.parseInt(parts[0]);
                     maxId = Math.max(maxId, userId);
                 } catch (NumberFormatException e) {
-                    // exception is userID not an integer
+                    // exception if userID not an integer
                     System.err.println("Invalid userId format in file: " + parts[0]);
                 }
             }
@@ -222,7 +272,7 @@ private void writeUserData(User user) {
 }
 
     // MAIN SCREEN
-    private void showMainScreen() {
+    private void showMainScreen(User loggedInUser) {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: #F5F5DC;");
 
@@ -236,7 +286,7 @@ private void writeUserData(User user) {
         bankNameLabel.setFont(Font.font("Arial", 20));
         bankNameLabel.setTextFill(Color.WHITE);
 
-        Label helloLabel = new Label("Hello, {name}!"); // Add functionality later
+        Label helloLabel = new Label("Hello, " + loggedInUser.getFirstName() + "!");
         helloLabel.setFont(Font.font("Arial", 16));
         helloLabel.setTextFill(Color.WHITE);
 
@@ -254,53 +304,167 @@ private void writeUserData(User user) {
         header.getChildren().addAll(bankNameLabel, helloLabel, logoutButton);
         root.setTop(header);
 
-        // account boxes
-        VBox accountBoxes = new VBox(20);
-        accountBoxes.setPadding(new Insets(20, 20, 20, 20));
-        accountBoxes.setAlignment(Pos.CENTER);
+    // User's accounts
+    List<Account> userAccounts = getUserAccounts(loggedInUser);
 
-        // Checking
-        VBox checkingAccountBox = createAccountBox("CHECKING ACCOUNT", "Random Guy", 1000.0, 500.0);
-        accountBoxes.getChildren().add(checkingAccountBox);
+    VBox accountBoxes = new VBox(20);
+    accountBoxes.setPadding(new Insets(20, 20, 20, 20));
+    accountBoxes.setAlignment(Pos.CENTER);
 
-        // Savings
-        VBox savingsAccountBox = createAccountBox("SAVINGS ACCOUNT", "Random Guy", 2500.0, 1000.0);
-        accountBoxes.getChildren().add(savingsAccountBox);
-
-        root.setCenter(accountBoxes);
-
-        // Bottom buttons
-        HBox bottomButtons = new HBox(20);
-        bottomButtons.setPadding(new Insets(10, 20, 20, 20));
-        bottomButtons.setAlignment(Pos.CENTER);
-
-        Button transferButton = new Button("Transfer Money");
-        Button openAccountButton = new Button("Open a New Account");
-
-        bottomButtons.getChildren().addAll(transferButton, openAccountButton);
-        root.setBottom(bottomButtons);
-
-        // Main scene
-        Scene scene = new Scene(root, 800, 600);
-        primaryStage.setTitle("Easy Banking App");
-        primaryStage.setScene(scene);
-        primaryStage.show();
+    for (Account account : userAccounts) {
+        VBox accountBox = createAccountBox(account.getAccountType(), loggedInUser.getFirstName() + " " + loggedInUser.getLastName(), account.getBalance(), account.getBalance());
+        accountBoxes.getChildren().add(accountBox);
     }
 
-    private VBox createAccountBox(String accountType, String name, double availableBalance, double currentBalance) {
-        VBox accountBox = new VBox(10);
-        accountBox.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 10px;");
-        accountBox.setAlignment(Pos.CENTER);
+    root.setCenter(accountBoxes);
 
-        Label accountTypeLabel = new Label(accountType);
-        Label nameLabel = new Label("Name: " + name);
-        Label availableBalanceLabel = new Label("Available Balance: $" + availableBalance);
-        Label currentBalanceLabel = new Label("Current Balance: $" + currentBalance);
+    // Bottom buttons
+    HBox bottomButtons = new HBox(20);
+    bottomButtons.setPadding(new Insets(10, 20, 20, 20));
+    bottomButtons.setAlignment(Pos.CENTER);
+
+    Button transferButton = new Button("Transfer Money");
+    transferButton.setOnAction(e -> showTransferDialog(loggedInUser));
+    
+
+    bottomButtons.getChildren().addAll(transferButton);
+    root.setBottom(bottomButtons);
+
+    // Main scene
+    Scene scene = new Scene(root, 800, 600);
+    primaryStage.setTitle("Easy Banking App");
+    primaryStage.setScene(scene);
+    primaryStage.show();
+}
+
+private List<Account> getUserAccounts(User loggedInUser) {
+    List<Account> accounts = new ArrayList<>();
+
+    Account checkingAccount = new Account(1, "CHECKING", loggedInUser.getUserId());
+    checkingAccount.saveAccountData();
+    checkingAccount.loadAccountData();
+
+    Account savingsAccount = new Account(2, "SAVINGS", loggedInUser.getUserId());
+    savingsAccount.saveAccountData();
+    savingsAccount.loadAccountData();
+
+    accounts.add(checkingAccount);
+    accounts.add(savingsAccount);
+
+    return accounts;
+}
+
+private void showTransferDialog(User loggedInUser) {
+    Stage transferStage = new Stage();
+    transferStage.initModality(Modality.APPLICATION_MODAL);
+    transferStage.initOwner(primaryStage);
+    transferStage.setTitle("Transfer Money");
+
+    GridPane transferGrid = new GridPane();
+    transferGrid.setAlignment(Pos.CENTER);
+    transferGrid.setHgap(10);
+    transferGrid.setVgap(10);
+    transferGrid.setPadding(new Insets(20, 20, 20, 20));
+
+    Label fromLabel = new Label("From:");
+    ComboBox<String> fromComboBox = new ComboBox<>();
+    fromComboBox.getItems().addAll("Checking Account", "Savings Account");
+    fromComboBox.setValue("Checking Account");
+
+    Label toLabel = new Label("To:");
+    ComboBox<String> toComboBox = new ComboBox<>();
+    toComboBox.getItems().addAll("Checking Account", "Savings Account");
+    toComboBox.setValue("Savings Account");
+
+    Label amountLabel = new Label("Amount:");
+    TextField amountField = new TextField();
+
+    Button transferButton = new Button("Transfer");
+    transferButton.setOnAction(e -> {
+        String fromAccount = fromComboBox.getValue();
+        String toAccount = toComboBox.getValue();
+        double amount = Double.parseDouble(amountField.getText());
+
+        Account from = fromAccount.equals("Checking Account") ? getCheckingAccount(loggedInUser) : getSavingsAccount(loggedInUser);
+        Account to = toAccount.equals("Checking Account") ? getCheckingAccount(loggedInUser) : getSavingsAccount(loggedInUser);
+
+        if (from.getBalance() >= amount) {
+            transferMoney(from, to, amount);
+
+            transferStage.close();
+        } else {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText("Insufficient Balance");
+            alert.setContentText("You do not have sufficient balance in the selected account.");
+            alert.showAndWait();
+        }
+    });
+
+    transferGrid.add(fromLabel, 0, 0);
+    transferGrid.add(fromComboBox, 1, 0);
+    transferGrid.add(toLabel, 0, 1);
+    transferGrid.add(toComboBox, 1, 1);
+    transferGrid.add(amountLabel, 0, 2);
+    transferGrid.add(amountField, 1, 2);
+    transferGrid.add(transferButton, 0, 3, 2, 1);
+
+    Scene transferScene = new Scene(transferGrid, 300, 200);
+    transferStage.setScene(transferScene);
+    transferStage.show();
+}
+
+private Account getCheckingAccount(User user) {
+    if (user != null) {
+        return user.getCheckingAccount();
+    }
+    return null;
+}
+
+private Account getSavingsAccount(User user) {
+    if (user != null) {
+        return user.getSavingsAccount();
+    }
+    return null;
+}
+
+private void transferMoney(Account fromAccount, Account toAccount, double amount) {
+    if (fromAccount.getBalance() >= amount) {
+        // Withdraw from the sender's account
+        fromAccount.withdraw(amount);
+        
+        // Deposit to the receiver's account
+        toAccount.deposit(amount);
+
+        // Record transactions
+        Transaction outgoingTransaction = new Transaction(fromAccount.getAccountId(), fromAccount.getAccountType(), fromAccount.getUserId());
+        outgoingTransaction.makeTransaction(amount, "TRANSFER_OUT");
+
+        Transaction incomingTransaction = new Transaction(toAccount.getAccountId(), toAccount.getAccountType(), toAccount.getUserId());
+        incomingTransaction.makeTransaction(amount, "TRANSFER_IN");
+        
+        System.out.println("Transfer of $" + amount + " from " + fromAccount.getAccountType() + " to " + toAccount.getAccountType() + " completed successfully.");
+    } else {
+        System.out.println("Insufficient balance in the " + fromAccount.getAccountType() + " account.");
+    }
+}
+
+private VBox createAccountBox(String accountType, String name, double availableBalance, double currentBalance) {
+    VBox accountBox = new VBox(10);
+    accountBox.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 10px;");
+    accountBox.setAlignment(Pos.CENTER);
+
+    Label accountTypeLabel = new Label(accountType);
+    Label availableBalanceLabel = new Label("Available Balance: $" + availableBalance);
+    /* If users could pay with this bank outside of the program, this would display
+    * their current balance whilst a transaction was still pending/processing. Since transactions are
+    * instantaneous in this example, the current balance is the same as the available balance. */
+    Label currentBalanceLabel = new Label("Current Balance: $" + currentBalance);
 
         Button viewTransactionsButton = new Button("View Transactions");
         // Implement functionality later
 
-        accountBox.getChildren().addAll(accountTypeLabel, nameLabel, availableBalanceLabel, currentBalanceLabel, viewTransactionsButton);
+        accountBox.getChildren().addAll(accountTypeLabel, availableBalanceLabel, currentBalanceLabel, viewTransactionsButton);
         return accountBox;
     }
 

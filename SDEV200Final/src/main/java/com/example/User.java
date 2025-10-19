@@ -8,6 +8,8 @@ public class User {
     private String password;
     private String email;
     private long phoneNumber;
+    private Account checkingAccount;
+    private Account savingsAccount;
 
     public User(int userId, String firstName, String lastName, String username, String password, String email, long phoneNumber) {
         this.userId = userId;
@@ -45,5 +47,21 @@ public class User {
 
     public long getPhoneNumber() {
         return phoneNumber;
+    }
+
+    public Account getCheckingAccount() {
+        return checkingAccount;
+    }
+
+    public void setCheckingAccount(Account checkingAccount) {
+        this.checkingAccount = checkingAccount;
+    }
+
+    public Account getSavingsAccount() {
+        return savingsAccount;
+    }
+
+    public void setSavingsAccount(Account savingsAccount) {
+        this.savingsAccount = savingsAccount;
     }
 }
