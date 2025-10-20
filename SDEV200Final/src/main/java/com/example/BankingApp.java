@@ -1,3 +1,9 @@
+// Hunter Schneider
+// SDEV200
+// Prof. Brian Parrott
+// 10/20/25
+// A simple banking app that allows users to sign up, log in, transfer money between their checking and savings accounts, and view their transaction history.
+
 package com.example;
 
 import java.sql.Connection;
