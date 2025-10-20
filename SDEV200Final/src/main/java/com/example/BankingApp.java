@@ -17,6 +17,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -71,7 +73,7 @@ public class BankingApp extends Application {
         Button loginButton = new Button("Login");
         Button signupButton = new Button("Sign Up");
 
-    loginButton.setOnAction(e -> {
+        loginButton.setOnAction(e -> {
         String username = usernameField.getText();
         String password = passwordField.getText();
 
@@ -174,7 +176,7 @@ public class BankingApp extends Application {
     Button createAccountButton = new Button("Create Account");
     Button backToLoginButton = new Button("Back to Login");
 
-createAccountButton.setOnAction(e -> {
+    createAccountButton.setOnAction(e -> {
     String firstName = firstNameField.getText();
     String lastName = lastNameField.getText();
     String email = emailField.getText();
@@ -227,35 +229,35 @@ createAccountButton.setOnAction(e -> {
     primaryStage.show();
 }
 
-// function for making user IDs unique
-private int getNextUserId() {
-    int maxId = 0;
-    try (Connection connection = DatabaseConnection.getConnection();
-         Statement statement = connection.createStatement();
-         ResultSet resultSet = statement.executeQuery("SELECT MAX(user_id) AS maxId FROM users")) {
-        if (resultSet.next()) {
-            maxId = resultSet.getInt("maxId");
+    // function for making user IDs unique
+    private int getNextUserId() {
+        int maxId = 0;
+        try (Connection connection = DatabaseConnection.getConnection();
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT MAX(user_id) AS maxId FROM users")) {
+            if (resultSet.next()) {
+                maxId = resultSet.getInt("maxId");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-    } catch (SQLException e) {
-        e.printStackTrace();
+        return maxId + 1;
     }
-    return maxId + 1;
-}
 
-// function for writing user data to the users.txt file
-private void writeUserData(User user) {
-    try (Connection connection = DatabaseConnection.getConnection();
-         PreparedStatement statement = connection.prepareStatement("INSERT INTO users (user_id, first_name, last_name, username, password, email, phone_number) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
-        statement.setInt(1, user.getUserId());
-        statement.setString(2, user.getFirstName());
-        statement.setString(3, user.getLastName());
-        statement.setString(4, user.getUsername());
-        statement.setString(5, user.getPassword());
-        statement.setString(6, user.getEmail());
-        statement.setLong(7, user.getPhoneNumber());
-        statement.executeUpdate();
-    } catch (SQLException e) {
-        e.printStackTrace();
+    // function for writing user data to the users.txt file
+    private void writeUserData(User user) {
+        try (Connection connection = DatabaseConnection.getConnection();
+            PreparedStatement statement = connection.prepareStatement("INSERT INTO users (user_id, first_name, last_name, username, password, email, phone_number) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+            statement.setInt(1, user.getUserId());
+            statement.setString(2, user.getFirstName());
+            statement.setString(3, user.getLastName());
+            statement.setString(4, user.getUsername());
+            statement.setString(5, user.getPassword());
+            statement.setString(6, user.getEmail());
+            statement.setLong(7, user.getPhoneNumber());
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
     }
 }
 
@@ -293,18 +295,36 @@ private void writeUserData(User user) {
         root.setTop(header);
 
     // User's accounts
-    List<Account> userAccounts = getUserAccounts(loggedInUser);
+    Account checkingAccount = getAccountByType(loggedInUser.getUserId(), "CHECKING");
+    if (checkingAccount == null) {
+        checkingAccount = createAccount(loggedInUser.getUserId(), "CHECKING");
+    }
+    Account savingsAccount = getAccountByType(loggedInUser.getUserId(), "SAVINGS");
+    if (savingsAccount == null) {
+        savingsAccount = createAccount(loggedInUser.getUserId(), "SAVINGS");
+    }
+
+    loggedInUser.setCheckingAccount(checkingAccount);
+    loggedInUser.setSavingsAccount(savingsAccount);
 
     VBox accountBoxes = new VBox(20);
     accountBoxes.setPadding(new Insets(20, 20, 20, 20));
     accountBoxes.setAlignment(Pos.CENTER);
 
-    for (Account account : userAccounts) {
-        VBox accountBox = createAccountBox(account.getAccountType(), loggedInUser.getFirstName() + " " + loggedInUser.getLastName(), account.getBalance(), account.getBalance());
-        accountBoxes.getChildren().add(accountBox);
-    }
+    accountBoxes.getChildren().add(createAccountBox(
+        checkingAccount.getAccountType(),
+        loggedInUser.getFirstName() + " " + loggedInUser.getLastName(),
+        checkingAccount.getBalance(),
+        checkingAccount.getBalance()));
+
+    accountBoxes.getChildren().add(createAccountBox(
+        savingsAccount.getAccountType(),
+        loggedInUser.getFirstName() + " " + loggedInUser.getLastName(),
+        savingsAccount.getBalance(),
+        savingsAccount.getBalance()));
 
     root.setCenter(accountBoxes);
+    
 
     // Bottom buttons
     HBox bottomButtons = new HBox(20);
@@ -314,8 +334,10 @@ private void writeUserData(User user) {
     Button transferButton = new Button("Transfer Money");
     transferButton.setOnAction(e -> showTransferDialog(loggedInUser));
     
+    Button viewTransactionsButton = new Button("View Transactions");
+    viewTransactionsButton.setOnAction(e -> showTransactionsDialog(loggedInUser));
 
-    bottomButtons.getChildren().addAll(transferButton);
+    bottomButtons.getChildren().addAll(transferButton, viewTransactionsButton);
     root.setBottom(bottomButtons);
 
     // Main scene
@@ -324,23 +346,69 @@ private void writeUserData(User user) {
     primaryStage.setScene(scene);
     primaryStage.show();
 }
+    // Makes account boxes
+    private VBox createAccountBox(String accountType, String name, double availableBalance, double currentBalance) {
+    VBox accountBox = new VBox(10);
+    accountBox.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 10px;");
+    accountBox.setAlignment(Pos.CENTER);
 
-private List<Account> getUserAccounts(User loggedInUser) {
-    List<Account> accounts = new ArrayList<>();
+    Label accountTypeLabel = new Label(accountType);
+    Label availableBalanceLabel = new Label("Available Balance: $" + availableBalance);
+    /* If users could pay with this bank outside of the program, this would display
+    * their current balance whilst a transaction was still pending/processing. Since transactions are
+    * instantaneous in this example, the current balance is the same as the available balance. */   
+    Label currentBalanceLabel = new Label("Current Balance: $" + currentBalance);
 
-    Account checkingAccount = new Account(1, "CHECKING", loggedInUser.getUserId());
-    checkingAccount.saveAccountData();
-    checkingAccount.loadAccountData();
+        accountBox.getChildren().addAll(accountTypeLabel, availableBalanceLabel, currentBalanceLabel);
+        return accountBox;
+    }
 
-    Account savingsAccount = new Account(2, "SAVINGS", loggedInUser.getUserId());
-    savingsAccount.saveAccountData();
-    savingsAccount.loadAccountData();
+private Account createAccount(int userId, String accountType) {
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement statement = connection.prepareStatement("INSERT INTO accounts (user_id, balance, account_type) VALUES (?, ?, ?)", Statement.RETURN_GENERATED_KEYS)) {
+        statement.setInt(1, userId);
+        statement.setDouble(2, 500.0); // Set initial balance to 500 for testing
+        statement.setString(3, accountType);
+        statement.executeUpdate();
 
-    accounts.add(checkingAccount);
-    accounts.add(savingsAccount);
+        try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+            if (generatedKeys.next()) {
+                int accountId = generatedKeys.getInt(1);
+                return new Account(accountId, accountType, userId, 500.0);
+            }
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
 
-    return accounts;
+    return null;
 }
+
+private Account getAccountByType(int userId, String accountType) {
+    Account account = null;
+    String sql = "SELECT account_id, balance FROM accounts WHERE user_id = ? AND account_type = ?";
+
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement stmt = connection.prepareStatement(sql)) {
+        stmt.setInt(1, userId);
+        stmt.setString(2, accountType);
+
+        try (ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                int accountId = rs.getInt("account_id");
+                double balance = rs.getDouble("balance");
+                account = new Account(accountId, accountType, userId, balance);
+                account.loadAccountData();
+            }
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+
+    return account;
+}
+
+// TRANSACTION STUFF
 
 private void showTransferDialog(User loggedInUser) {
     Stage transferStage = new Stage();
@@ -371,16 +439,63 @@ private void showTransferDialog(User loggedInUser) {
     transferButton.setOnAction(e -> {
         String fromAccount = fromComboBox.getValue();
         String toAccount = toComboBox.getValue();
-        double amount = Double.parseDouble(amountField.getText());
 
-        Account from = fromAccount.equals("Checking Account") ? getCheckingAccount(loggedInUser) : getSavingsAccount(loggedInUser);
-        Account to = toAccount.equals("Checking Account") ? getCheckingAccount(loggedInUser) : getSavingsAccount(loggedInUser);
+        // Stop user from choosing nothing
+        if (fromAccount == null || toAccount == null) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText("Select accounts");
+            alert.setContentText("Please choose both From and To accounts.");
+            alert.showAndWait();
+            return;
+        }
 
+        // Stop user from choosing same account to transfer to
+        if (fromAccount.equals(toAccount)) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText("Same account");
+            alert.setContentText("From and To accounts cannot be the same.");
+            alert.showAndWait();
+            return;
+        }
+
+            double amount;
+        try {
+            amount = Double.parseDouble(amountField.getText().trim());
+            if (amount <= 0) {
+                throw new NumberFormatException();
+            }
+        } catch (NumberFormatException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText("Invalid amount");
+            alert.setContentText("Please enter a valid positive number.");
+            alert.showAndWait();
+            return;
+        }
+
+        // Fetch accounts from user
+    Account from = fromAccount.equals("Checking Account") ? loggedInUser.getCheckingAccount() : loggedInUser.getSavingsAccount();
+    Account to = toAccount.equals("Checking Account") ? loggedInUser.getCheckingAccount() : loggedInUser.getSavingsAccount();
+
+        if (from == null || to == null) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText("Account not found");
+            alert.setContentText("Couldn't find user's account.'");
+            alert.showAndWait();
+            return;
+        }
+
+        // Do transfer after checkign balance
         if (from.getBalance() >= amount) {
             transferMoney(from, to, amount);
-
             transferStage.close();
+
+            showMainScreen(loggedInUser);
         } else {
+            // Alert for insufficient balance
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Error");
             alert.setHeaderText("Insufficient balance");
@@ -402,59 +517,133 @@ private void showTransferDialog(User loggedInUser) {
     transferStage.show();
 }
 
-private Account getCheckingAccount(User user) {
-    if (user != null) {
-        return user.getCheckingAccount();
-    }
-    return null;
-}
-
-private Account getSavingsAccount(User user) {
-    if (user != null) {
-        return user.getSavingsAccount();
-    }
-    return null;
-}
-
 private void transferMoney(Account fromAccount, Account toAccount, double amount) {
     if (fromAccount.getBalance() >= amount) {
-        // Withdraw from the sending account
+        // withdraw and deposit function
         fromAccount.withdraw(amount);
-        
-        // Deposit to the receiving account
         toAccount.deposit(amount);
 
-        // Record transactions
-        Transaction outgoingTransaction = new Transaction(fromAccount.getAccountId(), fromAccount.getAccountType(), fromAccount.getUserId());
+        Transaction outgoingTransaction = new Transaction(
+                fromAccount.getAccountId(),
+                fromAccount.getAccountType(),
+                fromAccount.getUserId(),
+                fromAccount.getBalance()  // current balance after withdrawal
+        );
         outgoingTransaction.makeTransaction(amount, "TRANSFER_OUT");
 
-        Transaction incomingTransaction = new Transaction(toAccount.getAccountId(), toAccount.getAccountType(), toAccount.getUserId());
+        Transaction incomingTransaction = new Transaction(
+                toAccount.getAccountId(),
+                toAccount.getAccountType(),
+                toAccount.getUserId(),
+                toAccount.getBalance()    // current balance after deposit
+        );
         incomingTransaction.makeTransaction(amount, "TRANSFER_IN");
-        
-        System.out.println("Transfer of $" + amount + " from " + fromAccount.getAccountType() + " to " + toAccount.getAccountType() + " completed successfully.");
+
+        // Save transactions
+        saveTransaction(outgoingTransaction);
+        saveTransaction(incomingTransaction);
+
+        System.out.println("Transfer of $" + amount + " from " + fromAccount.getAccountType() +
+                " to " + toAccount.getAccountType() + " completed successfully.");
     } else {
-        System.out.println("Insufficient balance in the " + fromAccount.getAccountType() + " account.");
+        System.out.println("Insufficient balance.");
     }
 }
 
-private VBox createAccountBox(String accountType, String name, double availableBalance, double currentBalance) {
-    VBox accountBox = new VBox(10);
-    accountBox.setStyle("-fx-background-color: #FFFFFF; -fx-padding: 10px;");
-    accountBox.setAlignment(Pos.CENTER);
-
-    Label accountTypeLabel = new Label(accountType);
-    Label availableBalanceLabel = new Label("Available Balance: $" + availableBalance);
-    /* If users could pay with this bank outside of the program, this would display
-    * their current balance whilst a transaction was still pending/processing. Since transactions are
-    * instantaneous in this example, the current balance is the same as the available balance. */
-    Label currentBalanceLabel = new Label("Current Balance: $" + currentBalance);
-
-        Button viewTransactionsButton = new Button("View Transactions");
-        // Implement functionality later
-
-        accountBox.getChildren().addAll(accountTypeLabel, availableBalanceLabel, currentBalanceLabel, viewTransactionsButton);
-        return accountBox;
+// Save transaction data to database
+private void saveTransaction(Transaction transaction) {
+    try (Connection connection = DatabaseConnection.getConnection();
+    PreparedStatement statement = connection.prepareStatement("INSERT INTO transactions (user_id, account_id, amount, date, type) VALUES (?, ?, ?, ?, ?)")) {
+        statement.setInt(1, transaction.getUserId());
+        statement.setInt(2, transaction.getAccountId());
+        statement.setDouble(3, transaction.getAmount());
+        statement.setDate(4, new java.sql.Date(transaction.getDate().getTime()));
+        statement.setString(5, transaction.getType());
+        statement.executeUpdate();
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
+}
+
+private void showTransactionsDialog(User loggedInUser) {
+  Stage dialog = new Stage();
+  dialog.initModality(Modality.APPLICATION_MODAL);
+  dialog.initOwner(primaryStage);
+  dialog.setTitle("Transaction History");
+  TableView < Transaction > table = new TableView < > ();
+  table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+  // Make a table to show the transactions
+  // Date of transaction
+  TableColumn < Transaction, String > colDate = new TableColumn < > ("Date");
+  colDate.setCellValueFactory(cell -> {
+    java.util.Date d = cell.getValue().getDate();
+    String s = (d == null) ? "" : new java.text.SimpleDateFormat("yyyy-MM-dd").format(d);
+    return new javafx.beans.property.SimpleStringProperty(s);
+  });
+
+  // Transaction type
+  TableColumn < Transaction, String > colType = new TableColumn < > ("Type");
+  colType.setCellValueFactory(cell ->
+    new javafx.beans.property.SimpleStringProperty(cell.getValue().getType())
+  );
+
+  // Account type
+  TableColumn < Transaction, String > colAccount = new TableColumn < > ("Account");
+  colAccount.setCellValueFactory(cell ->
+    new javafx.beans.property.SimpleStringProperty(cell.getValue().getAccountType())
+  );
+
+  // Amount transferred
+  TableColumn < Transaction, String > colAmount = new TableColumn < > ("Amount");
+  colAmount.setCellValueFactory(cell -> {
+    String s = String.format("$%,.2f", cell.getValue().getAmount());
+    return new javafx.beans.property.SimpleStringProperty(s);
+  });
+
+  table.getColumns().addAll(colDate, colType, colAccount, colAmount);
+
+  // Load transactions
+  table.getItems().setAll(getUserTransactions(loggedInUser.getUserId()));
+
+  VBox root = new VBox(10, table);
+  root.setPadding(new Insets(10));
+  root.setPrefSize(700, 450);
+
+  Scene scene = new Scene(root);
+  dialog.setScene(scene);
+  dialog.showAndWait();
+}
+
+private List < Transaction > getUserTransactions(int userId) {
+  List < Transaction > list = new ArrayList < > ();
+  String sql = "SELECT t.transaction_id, t.account_id, t.user_id, t.amount, t.type, t.date, a.account_type " +
+    "FROM Transactions t " +
+    "JOIN Accounts a ON t.account_id = a.account_id " +
+    "WHERE t.user_id = ? " +
+    "ORDER BY t.date DESC, t.transaction_id DESC";
+  try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+    ps.setInt(1, userId);
+    try (ResultSet rs = ps.executeQuery()) {
+      while (rs.next()) {
+        int accountId = rs.getInt("account_id");
+        String accountType = rs.getString("account_type");
+        double amount = rs.getDouble("amount");
+        String type = rs.getString("type");
+        java.sql.Timestamp ts = rs.getTimestamp("date");
+        java.util.Date date = (ts != null) ? new java.util.Date(ts.getTime()) : null;
+        Transaction tr = new Transaction(accountId, accountType, userId, 0.0);
+        tr.setAmount(amount);
+        tr.setType(type);
+        tr.setDate(date);
+        list.add(tr);
+      }
+    }
+  } catch (SQLException ex) {
+    ex.printStackTrace();
+  }
+  return list;
+}
 
     public static void main(String[] args) {
         launch(args);

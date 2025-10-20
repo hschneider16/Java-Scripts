@@ -11,11 +11,11 @@ public class Account {
     private String accountType;
     private int userId;
 
-    public Account(int accountId, String accountType, int userId) {
+    public Account(int accountId, String accountType, int userId, double balance) {
         this.accountId = accountId;
         this.accountType = accountType;
         this.userId = userId;
-        this.balance = 500.0; // Starts as 500 for test purposes
+        this.balance = balance;
     }
 
     public int getAccountId() {
@@ -51,21 +51,32 @@ public class Account {
     }
 
     public void deposit(double amount) {
-        balance += amount;
-        System.out.println("Deposited: $" + amount);
+        if (amount > 0) {
+            balance += amount;
+            System.out.println("Deposited: $" + amount);
+            updateBalance();
+        }
     }
 
     public void withdraw(double amount) {
-        if (balance >= amount) {
+        if (amount > 0 && balance >= amount) {
             balance -= amount;
             System.out.println("Withdrawn: $" + amount);
+            updateBalance();
         } else {
             System.out.println("Insufficient balance!");
         }
     }
 
-    public void checkBalance() {
-        System.out.println("Current balance: $" + balance);
+    private void updateBalance() {
+        try (Connection connection = DatabaseConnection.getConnection();
+            PreparedStatement statement = connection.prepareStatement("UPDATE accounts SET balance = ? WHERE account_id = ?")) {
+         statement.setDouble(1, balance);
+            statement.setInt(2, accountId);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
 public void saveAccountData() {
@@ -87,8 +98,8 @@ public void loadAccountData() {
         statement.setString(2, accountType);
         try (ResultSet resultSet = statement.executeQuery()) {
             if (resultSet.next()) {
-                int accountId = resultSet.getInt("account_id");
-                double balance = resultSet.getDouble("balance");
+                this.accountId = resultSet.getInt("account_id");
+                this.balance = resultSet.getDouble("balance");
             }
         }
     } catch (SQLException e) {
