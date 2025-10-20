@@ -1,13 +1,12 @@
 package com.example;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
 import javafx.application.Application;
 import javafx.geometry.Insets;
@@ -28,7 +27,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-
 
 public class BankingApp extends Application {
 
@@ -112,35 +110,28 @@ public class BankingApp extends Application {
         primaryStage.show();
     }
 
-private User authenticateUser(String username, String password) {
-    try {
-        Scanner scanner = new Scanner(new File("src\\main\\data\\users.txt"));
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine();
-            String[] parts = line.split(",");
-
-            if (parts.length == 7) {
-                int userId = Integer.parseInt(parts[0]);
-                String storedUsername = parts[3];
-                String storedPassword = parts[4];
-
-                if (username.equals(storedUsername) && password.equals(storedPassword)) {
-                    String firstName = parts[1];
-                    String lastName = parts[2];
-                    String email = parts[5];
-                    long phoneNumber = Long.parseLong(parts[6]);
-
-                    return new User(userId, firstName, lastName, storedUsername, storedPassword, email, phoneNumber);
+    // Authenticate the user logging in
+    public User authenticateUser(String username, String password) {
+        try (Connection connection = DatabaseConnection.getConnection();
+            PreparedStatement statement = connection.prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?")) {
+            statement.setString(1, username);
+            statement.setString(2, password);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    int userId = resultSet.getInt("user_id");
+                    String firstName = resultSet.getString("first_name");
+                    String lastName = resultSet.getString("last_name");
+                    String email = resultSet.getString("email");
+                    Long phoneNumber = resultSet.getLong("phone_number");
+                    // Retrieve other info
+                    return new User(userId, firstName, lastName, username, password, email, phoneNumber);
                 }
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        scanner.close();
-    } catch (FileNotFoundException e) {
-        System.out.println("Error: users.txt file not found.");
+        return null;
     }
-
-    return null;
-}
 
     // SIGN UP SCREEN
     private void showSignupScreen() {
@@ -183,33 +174,32 @@ private User authenticateUser(String username, String password) {
     Button createAccountButton = new Button("Create Account");
     Button backToLoginButton = new Button("Back to Login");
 
-    createAccountButton.setOnAction(e -> {
-        
-        String firstName = firstNameField.getText();
-        String lastName = lastNameField.getText();
-        String email = emailField.getText();
-        String phone = phoneField.getText();
-        String username = newUsernameField.getText();
-        String password = newPasswordField.getText();
-        
-        if (!phone.matches("\\d+")) {
-            // Notify user if number input is incorrect
-            phoneField.clear();
-            phoneField.setText("Invalid phone number");
-            return; // Prevent signing-up with an incorrect phone number
-        }
+createAccountButton.setOnAction(e -> {
+    String firstName = firstNameField.getText();
+    String lastName = lastNameField.getText();
+    String email = emailField.getText();
+    String phone = phoneField.getText();
+    String username = newUsernameField.getText();
+    String password = newPasswordField.getText();
+    
+    if (!phone.matches("\\d+")) {
+        // Notify user if phone number input is incorrect
+        phoneField.clear();
+        phoneField.setText("Invalid phone number");
+        return; // Prevent signing up with incorrect phone number
+    }
 
-        try {
-            int nextUserId = getNextUserId(); // Determine next unique userId
-            User newUser = new User(nextUserId, firstName, lastName, username, password, email, Long.parseLong(phone));
-            writeUserData(newUser);
-        } catch (NumberFormatException ex) {
-            System.out.println("Invalid phone number");
-        }
+    try {
+        int nextUserId = getNextUserId();
+        User newUser = new User(nextUserId, firstName, lastName, username, password, email, Long.parseLong(phone));
+        writeUserData(newUser);
+    } catch (NumberFormatException ex) {
+        System.out.println("Invalid phone number");
+    }
 
-        createAccountButton.setText("Account Created!");
-        createAccountButton.setDisable(true);
-    });
+    createAccountButton.setText("Account Created!");
+    createAccountButton.setDisable(true);
+});
 
     backToLoginButton.setOnAction(e -> showLoginScreen());
 
@@ -240,33 +230,31 @@ private User authenticateUser(String username, String password) {
 // function for making user IDs unique
 private int getNextUserId() {
     int maxId = 0;
-    try (Scanner scanner = new Scanner(new File("src\\main\\data\\users.txt"))) {
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine();
-            String[] parts = line.split(",");
-            if (parts.length > 0) {
-                try {
-                    int userId = Integer.parseInt(parts[0]);
-                    maxId = Math.max(maxId, userId);
-                } catch (NumberFormatException e) {
-                    // exception if userID not an integer
-                    System.err.println("Invalid userId format in file: " + parts[0]);
-                }
-            }
+    try (Connection connection = DatabaseConnection.getConnection();
+         Statement statement = connection.createStatement();
+         ResultSet resultSet = statement.executeQuery("SELECT MAX(user_id) AS maxId FROM users")) {
+        if (resultSet.next()) {
+            maxId = resultSet.getInt("maxId");
         }
-    } catch (FileNotFoundException e) {
-        return 1;
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
     return maxId + 1;
 }
 
 // function for writing user data to the users.txt file
 private void writeUserData(User user) {
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter("src\\main\\data\\users.txt", true))) {
-        writer.write(user.getUserId() + "," + user.getFirstName() + "," + user.getLastName() + "," +
-                user.getUsername() + "," + user.getPassword() + "," + user.getEmail() + "," + user.getPhoneNumber());
-        writer.newLine();
-    } catch (IOException e) {
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement statement = connection.prepareStatement("INSERT INTO users (user_id, first_name, last_name, username, password, email, phone_number) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+        statement.setInt(1, user.getUserId());
+        statement.setString(2, user.getFirstName());
+        statement.setString(3, user.getLastName());
+        statement.setString(4, user.getUsername());
+        statement.setString(5, user.getPassword());
+        statement.setString(6, user.getEmail());
+        statement.setLong(7, user.getPhoneNumber());
+        statement.executeUpdate();
+    } catch (SQLException e) {
         e.printStackTrace();
     }
 }
@@ -395,8 +383,8 @@ private void showTransferDialog(User loggedInUser) {
         } else {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Error");
-            alert.setHeaderText("Insufficient Balance");
-            alert.setContentText("You do not have sufficient balance in the selected account.");
+            alert.setHeaderText("Insufficient balance");
+            alert.setContentText("You don't have enough money to make this transaction.");
             alert.showAndWait();
         }
     });
@@ -430,10 +418,10 @@ private Account getSavingsAccount(User user) {
 
 private void transferMoney(Account fromAccount, Account toAccount, double amount) {
     if (fromAccount.getBalance() >= amount) {
-        // Withdraw from the sender's account
+        // Withdraw from the sending account
         fromAccount.withdraw(amount);
         
-        // Deposit to the receiver's account
+        // Deposit to the receiving account
         toAccount.deposit(amount);
 
         // Record transactions

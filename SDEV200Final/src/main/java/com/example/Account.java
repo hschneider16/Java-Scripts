@@ -1,11 +1,9 @@
 package com.example;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Scanner;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class Account {
     private int accountId;
@@ -70,29 +68,31 @@ public class Account {
         System.out.println("Current balance: $" + balance);
     }
 
-        public void saveAccountData() {
-        String fileName = userId + "_" + accountType + ".txt";
-
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
-            writer.write("Account ID: " + accountId);
-            writer.newLine();
-            writer.write("Balance: " + balance);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+public void saveAccountData() {
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement statement = connection.prepareStatement("INSERT INTO accounts (user_id, account_type, balance) VALUES (?, ?, ?)")) {
+        statement.setInt(1, userId);
+        statement.setString(2, accountType);
+        statement.setDouble(3, balance);
+        statement.executeUpdate();
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
+}
 
-    public void loadAccountData() {
-        String fileName = userId + "_" + accountType + ".txt";
-
-        try (Scanner scanner = new Scanner(new File(fileName))) {
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                // Load account data from file
+public void loadAccountData() {
+    try (Connection connection = DatabaseConnection.getConnection();
+         PreparedStatement statement = connection.prepareStatement("SELECT * FROM accounts WHERE user_id = ? AND account_type = ?")) {
+        statement.setInt(1, userId);
+        statement.setString(2, accountType);
+        try (ResultSet resultSet = statement.executeQuery()) {
+            if (resultSet.next()) {
+                int accountId = resultSet.getInt("account_id");
+                double balance = resultSet.getDouble("balance");
             }
-        } catch (FileNotFoundException e) {
-            System.out.println("Account data file not found");
-            saveAccountData(); // Create new account file if not found
         }
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
+}
 }
